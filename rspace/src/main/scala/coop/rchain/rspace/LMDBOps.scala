@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 
 import cats.effect.Sync
+import coop.rchain.catscontrib.ski._
 import cats.implicits._
 import org.lmdbjava.{Dbi, Env, Txn, TxnOps}
 import scodec.Codec
@@ -67,8 +68,8 @@ trait LMDBOps[F[_]] extends CloseOps {
   private[rspace] def withTxnFlatF[R](txnF: F[Txn[ByteBuffer]])(f: Txn[ByteBuffer] => F[R]): F[R] =
     for {
       txn    <- txnF
-      retErr <- f(txn).attempt
-      _      <- syncF.delay(retErr.map(_ => txn.commit()))
+      retA   <- f(txn)
+      retErr <- syncF.delay(txn.commit()).map(kp(retA)).attempt
       _      <- syncF.delay(updateGauges())
       _      <- syncF.delay(txn.close())
       ret    <- syncF.fromEither(retErr)
